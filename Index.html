@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L'Échappée Verte – Réservation</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f6f3e8;
+  color: #29452d;
+}
+header {
+  background: #557a46;
+  color: white;
+  text-align: center;
+  padding: 28px 15px;
+}
+header h1 {
+  margin: 0;
+  font-size: 32px;
+}
+header p {
+  margin-bottom: 0;
+}
+main {
+  max-width: 650px;
+  margin: auto;
+  padding: 18px;
+}
+.card {
+  background: white;
+  border-radius: 18px;
+  padding: 20px;
+  margin: 18px 0;
+  box-shadow: 0 3px 12px #0002;
+}
+.price {
+  font-size: 22px;
+  font-weight: bold;
+  color: #557a46;
+}
+label {
+  display: block;
+  margin-top: 14px;
+  font-weight: bold;
+}
+input, select, textarea {
+  width: 100%;
+  padding: 12px;
+  margin-top: 6px;
+  box-sizing: border-box;
+  border: 1px solid #bbb;
+  border-radius: 10px;
+  font-size: 16px;
+}
+button {
+  width: 100%;
+  margin-top: 20px;
+  padding: 15px;
+  border: 0;
+  border-radius: 12px;
+  background: #557a46;
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+}
+footer {
+  text-align: center;
+  padding: 25px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>🌿 L'Échappée Verte 🌿</h1>
+  <p>Gîtes • Carsac-de-Gurçon</p>
+</header>
+
+<main>
+
+<div class="card">
+  <h2>🏡 La Maison</h2>
+  <p>Maison avec 3 chambres</p>
+  <div class="price">200 € / nuit</div>
+</div>
+
+<div class="card">
+  <h2>🌸 Le Studio</h2>
+  <p>Un séjour confortable au cœur de la Dordogne</p>
+  <div class="price">65 € / nuit</div>
+</div>
+
+<div class="card">
+  <h2>📅 Demande de réservation</h2>
+
+  <form>
+    <label>Logement</label>
+    <select required>
+      <option>La Maison – 200 € / nuit</option>
+      <option>Le Studio – 65 € / nuit</option>
+    </select>
+
+    <label>Date d'arrivée</label>
+    <input type="date" required>
+
+    <label>Date de départ</label>
+    <input type="date" required>
+
+    <label>Nom et prénom</label>
+    <input type="text" required>
+
+    <label>Téléphone</label>
+    <input type="tel" required>
+
+    <label>E-mail</label>
+    <input type="email" required>
+
+    <label>Message</label>
+    <textarea rows="4"></textarea>
+
+    <button type="submit">🌿 Demander une réservation</button>
+  </form>
+</div>
+
+</main>
+
+<footer>
+  L'Échappée Verte<br>
+  Carsac-de-Gurçon • Dordogne
+</footer>
+
+</body>
+</html>
