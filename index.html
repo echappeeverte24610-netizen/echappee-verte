@@ -75,6 +75,36 @@ footer {
   text-align: center;
   padding: 25px;
 }
+/* Calendrier des disponibilités */
+.calendrier {
+  background: white;
+  border-radius: 16px;
+  padding: 15px;
+  margin: 20px 0;
+}
+
+.calendrier-grille {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+
+.jour {
+  text-align: center;
+  padding: 9px 2px;
+  border-radius: 8px;
+  background: #dff2df;
+}
+
+.jour.reserve {
+  background: #e57373;
+  color: white;
+}
+
+.legende {
+  margin-top: 12px;
+  font-size: 14px;
+}  
 </style>
 </head>
 
@@ -100,6 +130,22 @@ footer {
 </div>
 
 <div class="card">
+  <div class="calendrier">
+  <h2>📅 Disponibilités</h2>
+
+  <select id="calendrier-logement">
+    <option value="Maison">Maison – 200 € / nuit</option>
+    <option value="Studio">Studio – 65 € / nuit</option>
+  </select>
+
+  <h3 id="calendrier-mois"></h3>
+
+  <div class="calendrier-grille" id="calendrier-grille"></div>
+
+  <div class="legende">
+    🟢 Disponible &nbsp;&nbsp; 🔴 Réservé
+  </div>
+  </div>
   <h2>📅 Demande de réservation</h2>
 
   <form action="https://formsubmit.co/echappee.verte.24610@gmail.com" method="POST">
@@ -212,6 +258,63 @@ const reservation = {
     alert("Erreur lors de la réservation. Merci de réessayer.");
   }
 }); 
+  async function chargerCalendrier() {
+  const logement = document.getElementById("calendrier-logement").value;
+  const grille = document.getElementById("calendrier-grille");
+  const titre = document.getElementById("calendrier-mois");
+
+  const maintenant = new Date();
+  const annee = maintenant.getFullYear();
+  const mois = maintenant.getMonth();
+
+  titre.textContent = maintenant.toLocaleDateString("fr-FR", {
+    month: "long",
+    year: "numeric"
+  });
+
+  try {
+    const reponse = await fetch("/reservations");
+    const reservations = await reponse.json();
+
+    grille.innerHTML = "";
+
+    const premierJour = new Date(annee, mois, 1);
+    const dernierJour = new Date(annee, mois + 1, 0);
+
+    let decalage = premierJour.getDay();
+    decalage = decalage === 0 ? 6 : decalage - 1;
+
+    for (let i = 0; i < decalage; i++) {
+      grille.innerHTML += "<div></div>";
+    }
+
+    for (let jour = 1; jour <= dernierJour.getDate(); jour++) {
+      const dateISO =
+        annee + "-" +
+        String(mois + 1).padStart(2, "0") + "-" +
+        String(jour).padStart(2, "0");
+
+      const reserve = reservations.some(r =>
+        r.logement === logement &&
+        dateISO >= r.arrivee &&
+        dateISO < r.depart
+      );
+
+      const caseJour = document.createElement("div");
+      caseJour.className = reserve ? "jour reserve" : "jour";
+      caseJour.textContent = jour;
+      grille.appendChild(caseJour);
+    }
+  } catch (erreur) {
+    grille.innerHTML = "Impossible de charger les disponibilités.";
+  }
+}
+
+document
+  .getElementById("calendrier-logement")
+  .addEventListener("change", chargerCalendrier);
+
+chargerCalendrier();
 </script>
 
 </body>
