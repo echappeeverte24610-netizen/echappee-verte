@@ -178,7 +178,36 @@ document.getElementById("montantEmail").value = montant + " €";
 logement.addEventListener("change", calculerPrix);
 dates[0].addEventListener("change", calculerPrix);
 dates[1].addEventListener("change", calculerPrix);
-  
+ form.addEventListener("submit", async function(e) {
+  e.preventDefault();
+
+  const reservation = {
+    logement: document.getElementById("logement").value,
+    arrivee: document.getElementById("arrivee").value,
+    depart: document.getElementById("depart").value
+  };
+
+  try {
+    const reponse = await fetch("/reservations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(reservation)
+    });
+
+    const resultat = await reponse.json();
+
+    if (!reponse.ok) {
+      alert(resultat.message || "Ces dates ne sont pas disponibles.");
+      return;
+    }
+
+    form.submit();
+  } catch (erreur) {
+    alert("Erreur lors de la réservation. Merci de réessayer.");
+  }
+}); 
 </script>
 
 </body>
