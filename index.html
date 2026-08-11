@@ -84,9 +84,14 @@ footer {
 }
 
 .calendrier-grille {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
   gap: 5px;
+  width: 100%;
+}
+
+.calendrier-grille > div {
+  min-width: 0;
 }
 
 .jour {
