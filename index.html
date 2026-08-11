@@ -100,29 +100,29 @@ footer {
 
   <form action="https://formsubmit.co/echappee.verte.24610@gmail.com" method="POST">
     <label>Logement</label>
-    <select id="logement" required>
+    <select id="logement" name="logement required>
       <option>La Maison – 200 € / nuit</option>
       <option>Le Studio – 65 € / nuit</option>
     </select>
 
     <label>Date d'arrivée</label>
-    <input type="date" required>
+    <input type="date" id="arrivee" name="Date arrivée" required>
 
     <label>Date de départ</label>
-    <input type="date" required>
+    <input type="date" id="depart" name="Date départ" required>
 
     <label>Nom et prénom</label>
-    <input type="text" required>
+    <input type="text" id="nom" name="Non et prénom " required>
 
     <label>Téléphone</label>
-    <input type="tel" required>
+    <input type="tel" id="téléphone" name="Téléphone" required>
 
     <label>E-mail</label>
-    <input type="email" required>
+    <input type="email" name="Email" required>
 
     <label>Message</label>
-    <textarea rows="4"></textarea>
-
+    <textarea rows="4" name="Message"></textarea>
+<input type="hidden" id="montantEmail" name="Montant total" value="">
     <button type="submit">🌿 Demander une réservation</button>
   </form>
 </div>
@@ -164,7 +164,7 @@ function calculerPrix() {
 
   const prixNuit = logement.selectedIndex === 0 ? 200 : 65;
   const montant = nuits * prixNuit;
-
+document.getElementById("montantEmail").value = montant + " €";
   total.innerHTML =
     "🌿 " + nuits + " nuit" + (nuits > 1 ? "s" : "") +
     " × " + prixNuit + " €<br>" +
