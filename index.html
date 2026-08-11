@@ -181,11 +181,15 @@ dates[1].addEventListener("change", calculerPrix);
  form.addEventListener("submit", async function(e) {
   e.preventDefault();
 
-  const reservation = {
-    logement: document.getElementById("logement").value,
-    arrivee: document.getElementById("arrivee").value,
-    depart: document.getElementById("depart").value
-  };
+const reservation = {
+  logement: document.getElementById("logement").value,
+  arrivee: document.getElementById("arrivee").value,
+  depart: document.getElementById("depart").value,
+  nom: document.getElementById("nom").value,
+  telephone: form.querySelector('input[type="tel"]').value,
+  email: form.querySelector('input[type="email"]').value,
+  message: form.querySelector("textarea").value
+};
 
   try {
     const reponse = await fetch("/reservations", {
