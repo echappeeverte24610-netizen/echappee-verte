@@ -71,7 +71,14 @@ export default {
         { headers }
       );
     }
+if (url.pathname === "/" || url.pathname === "/index.html" || url.pathname === "/Index.html") {
+  return env.ASSETS.fetch(request);
+}
 
+return new Response(
+  JSON.stringify({ message: "L'Échappée Verte - API réservation" }),
+  { headers }
+);
     return new Response(
       JSON.stringify({ message: "L'Échappée Verte - API réservation" }),
       { headers }
