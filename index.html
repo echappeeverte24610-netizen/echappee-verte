@@ -178,7 +178,32 @@ document.getElementById("montantEmail").value = montant + " €";
 logement.addEventListener("change", calculerPrix);
 dates[0].addEventListener("change", calculerPrix);
 dates[1].addEventListener("change", calculerPrix);
-  
+  form.addEventListener("submit", async function(e) {
+  e.preventDefault();
+
+  const reservation = {
+    logement: logement.value,
+    arrivee: dates[0].value,
+    depart: dates[1].value,
+    nom: document.getElementById("nom").value,
+    email: form.querySelector('input[type="email"]').value
+  };
+
+  const response = await fetch("/reservations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(reservation)
+  });
+
+  const resultat = await response.json();
+
+  if (!response.ok) {
+    alert(resultat.message || "Ces dates ne sont pas disponibles.");
+    return;
+  }
+
+  form.submit();
+});
 </script>
 
 </body>
