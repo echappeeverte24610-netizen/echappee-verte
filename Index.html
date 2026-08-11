@@ -133,6 +133,48 @@ footer {
   L'Échappée Verte<br>
   Carsac-de-Gurçon • Dordogne
 </footer>
+<script>
+const form = document.querySelector("form");
+const logement = form.querySelector("select");
+const dates = form.querySelectorAll('input[type="date"]');
+
+const total = document.createElement("div");
+total.style.marginTop = "20px";
+total.style.fontSize = "22px";
+total.style.fontWeight = "bold";
+total.style.color = "#557a46";
+total.style.textAlign = "center";
+total.innerHTML = "Sélectionnez vos dates pour calculer le prix";
+form.insertBefore(total, form.querySelector("button"));
+
+function calculerPrix() {
+  const arrivee = dates[0].value;
+  const depart = dates[1].value;
+
+  if (!arrivee || !depart) return;
+
+  const debut = new Date(arrivee);
+  const fin = new Date(depart);
+  const nuits = Math.round((fin - debut) / 86400000);
+
+  if (nuits <= 0) {
+    total.innerHTML = "⚠️ La date de départ doit être après l'arrivée";
+    return;
+  }
+
+  const prixNuit = logement.selectedIndex === 0 ? 200 : 65;
+  const montant = nuits * prixNuit;
+
+  total.innerHTML =
+    "🌿 " + nuits + " nuit" + (nuits > 1 ? "s" : "") +
+    " × " + prixNuit + " €<br>" +
+    "Total du séjour : " + montant + " €";
+}
+
+logement.addEventListener("change", calculerPrix);
+dates[0].addEventListener("change", calculerPrix);
+dates[1].addEventListener("change", calculerPrix);
+</script>
 
 </body>
 </html>
