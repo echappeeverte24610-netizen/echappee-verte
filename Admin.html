@@ -1,1 +1,135 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Réservation manuelle - L'Échappée Verte</title>
 
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f8f4;
+      padding: 20px;
+      color: #2f4f35;
+    }
+
+    .admin {
+      max-width: 500px;
+      margin: auto;
+      background: white;
+      padding: 25px;
+      border-radius: 15px;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    label {
+      display: block;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+
+    input, select, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 5px;
+      box-sizing: border-box;
+    }
+
+    button {
+      margin-top: 25px;
+      background: #357a46;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 17px;
+    }
+
+    #message {
+      margin-top: 20px;
+      text-align: center;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="admin">
+  <h1>🌿 L'Échappée Verte</h1>
+  <h2>Bloquer des dates</h2>
+
+  <label>Logement</label>
+  <select id="logement">
+    <option value="Maison">Maison</option>
+    <option value="Studio">Studio</option>
+  </select>
+
+  <label>Date d'arrivée</label>
+  <input type="date" id="arrivee">
+
+  <label>Date de départ</label>
+  <input type="date" id="depart">
+
+  <label>Nom du client</label>
+  <input type="text" id="nom">
+
+  <button type="button" onclick="bloquerDates()">
+    Bloquer les dates
+  </button>
+
+  <div id="message"></div>
+</div>
+
+<script>
+async function bloquerDates() {
+  const logement = document.getElementById("logement").value;
+  const arrivee = document.getElementById("arrivee").value;
+  const depart = document.getElementById("depart").value;
+  const nom = document.getElementById("nom").value;
+  const message = document.getElementById("message");
+
+  if (!arrivee || !depart || !nom) {
+    message.textContent = "Merci de remplir tous les champs.";
+    return;
+  }
+
+  if (depart <= arrivee) {
+    message.textContent = "La date de départ doit être après l'arrivée.";
+    return;
+  }
+
+  try {
+    const response = await fetch("/reservations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        logement: logement,
+        arrivee: arrivee,
+        depart: depart,
+        nom: nom,
+        email: "reservation-manuelle@echappee-verte.fr",
+        paiement: "Espèces",
+        manuel: true
+      })
+    });
+
+    const resultat = await response.json();
+
+    if (response.ok && resultat.success) {
+      message.textContent = "✅ Dates bloquées avec succès.";
+    } else {
+      message.textContent = "❌ " + (resultat.message || "Impossible de bloquer ces dates.");
+    }
+  } catch (erreur) {
+    message.textContent = "❌ Erreur lors de l'enregistrement.";
+  }
+}
+</script>
+
+</body>
+</html>
