@@ -285,7 +285,10 @@ const reservation = {
     const reservations = await reponse.json();
 
     grille.innerHTML = "";
-
+grille.style.display = "grid";
+grille.style.gridTemplateColumns = "repeat(7, 1fr)";
+grille.style.gap = "5px";
+    
     const premierJour = new Date(annee, mois, 1);
     const dernierJour = new Date(annee, mois + 1, 0);
 
@@ -311,6 +314,12 @@ const reservation = {
       const caseJour = document.createElement("div");
       caseJour.className = reserve ? "jour reserve" : "jour";
       caseJour.textContent = jour;
+      caseJour.style.textAlign = "center";
+caseJour.style.padding = "9px 0";
+caseJour.style.borderRadius = "8px";
+caseJour.style.fontWeight = "bold";
+caseJour.style.backgroundColor = reserve ? "#e53935" : "#8fd694";
+caseJour.style.color = reserve ? "white" : "#17351c";
       grille.appendChild(caseJour);
     }
   } catch (erreur) {
