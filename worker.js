@@ -71,6 +71,57 @@ export default {
         { headers }
       );
     }
+    if (url.pathname === "/reservations" && request.method === "DELETE") {
+  const suppression = await request.json();
+
+  if (
+    !suppression.logement ||
+    !suppression.arrivee ||
+    !suppression.depart
+  ) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Informations manquantes."
+      }),
+      { status: 400, headers }
+    );
+  }
+
+  const data = await env.RESERVATIONS.get("reservations");
+  const reservations = data ? JSON.parse(data) : [];
+
+  const index = reservations.findIndex(r =>
+    r.logement === suppression.logement &&
+    r.arrivee === suppression.arrivee &&
+    r.depart === suppression.depart
+  );
+
+  if (index === -1) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Réservation introuvable."
+      }),
+      { status: 404, headers }
+    );
+  }
+
+  reservations.splice(index, 1);
+
+  await env.RESERVATIONS.put(
+    "reservations",
+    JSON.stringify(reservations)
+  );
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message: "Dates débloquées."
+    }),
+    { headers }
+  );
+    }
 if (url.pathname === "/" || url.pathname === "/index.html" || url.pathname === "/Index.html") {
   return env.ASSETS.fetch(request);
 }
