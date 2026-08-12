@@ -146,7 +146,11 @@ footer {
     <option value="Studio">Studio – 65 € / nuit</option>
   </select>
 
+  <div class="navigation-mois">
+  <button type="button" id="mois-precedent">◀</button>
   <h3 id="calendrier-mois"></h3>
+  <button type="button" id="mois-suivant">▶</button>
+</div>
 
   <div class="calendrier-grille" id="calendrier-grille"></div>
 
@@ -266,12 +270,13 @@ const reservation = {
     alert("Erreur lors de la réservation. Merci de réessayer.");
   }
 }); 
+  let dateCalendrier = new Date();
   async function chargerCalendrier() {
   const logement = document.getElementById("calendrier-logement").value;
   const grille = document.getElementById("calendrier-grille");
   const titre = document.getElementById("calendrier-mois");
 
-  const maintenant = new Date();
+  const maintenant = dateCalendrier;
   const annee = maintenant.getFullYear();
   const mois = maintenant.getMonth();
 
@@ -331,6 +336,15 @@ document
   .getElementById("calendrier-logement")
   .addEventListener("change", chargerCalendrier);
 
+  document.getElementById("mois-precedent").addEventListener("click", () => {
+  dateCalendrier.setMonth(dateCalendrier.getMonth() - 1);
+  chargerCalendrier();
+});
+
+document.getElementById("mois-suivant").addEventListener("click", () => {
+  dateCalendrier.setMonth(dateCalendrier.getMonth() + 1);
+  chargerCalendrier();
+});
 chargerCalendrier();
 </script>
 
