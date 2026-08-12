@@ -82,7 +82,30 @@
   <button type="button" onclick="debloquerDates()">
   Débloquer les dates
 </button>
+<h2 style="margin-top:30px;">📅 Disponibilités</h2>
 
+<select id="calendrier-logement">
+  <option value="Maison">Maison</option>
+  <option value="Studio">Studio</option>
+</select>
+
+<div class="navigation-mois" style="display:flex;gap:10px;align-items:center;margin-top:15px;">
+  <button type="button" id="mois-precedent">◀</button>
+  <h3 id="calendrier-mois" style="flex:1;text-align:center;"></h3>
+  <button type="button" id="mois-suivant">▶</button>
+</div>
+
+<div id="calendrier-admin" style="
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:6px;
+  margin-top:15px;
+"></div>
+
+<div style="margin-top:15px;text-align:center;">
+  🟢 Disponible &nbsp;&nbsp; 🔴 Réservé
+</div>
+  
   <div id="message"></div>
 </div>
 
@@ -167,7 +190,80 @@ async function bloquerDates() {
     message.textContent = "❌ Erreur lors du déblocage.";
   }
   }
+  let moisAdmin = new Date();
+
+async function afficherCalendrierAdmin() {
+  const grille = document.getElementById("calendrier-admin");
+  const titre = document.getElementById("calendrier-mois");
+  const logement = document.getElementById("calendrier-logement").value;
+
+  grille.innerHTML = "";
+
+  const annee = moisAdmin.getFullYear();
+  const mois = moisAdmin.getMonth();
+
+  titre.textContent = new Intl.DateTimeFormat("fr-FR", {
+    month: "long",
+    year: "numeric"
+  }).format(moisAdmin);
+
+  let reservations = [];
+
+  try {
+    const response = await fetch("/reservations?logement=" + encodeURIComponent(logement));
+    const resultat = await response.json();
+    reservations = Array.isArray(resultat) ? resultat : (resultat.reservations || []);
+  } catch (erreur) {
+    console.error(erreur);
+  }
+
+  const premierJour = new Date(annee, mois, 1);
+  let decalage = premierJour.getDay();
+  decalage = decalage === 0 ? 6 : decalage - 1;
+
+  for (let i = 0; i < decalage; i++) {
+    grille.appendChild(document.createElement("div"));
+  }
+
+  const nombreJours = new Date(annee, mois + 1, 0).getDate();
+
+  for (let jour = 1; jour <= nombreJours; jour++) {
+    const date = `${annee}-${String(mois + 1).padStart(2,"0")}-${String(jour).padStart(2,"0")}`;
+
+    const reserve = reservations.some(r =>
+      r.logement === logement &&
+      date >= r.arrivee &&
+      date < r.depart
+    );
+
+    const caseJour = document.createElement("div");
+    caseJour.textContent = jour;
+    caseJour.style.padding = "10px 2px";
+    caseJour.style.textAlign = "center";
+    caseJour.style.borderRadius = "8px";
+    caseJour.style.fontWeight = "bold";
+caseJour.style.background = reserve ? "#e53935" : "#66bb6a";
+caseJour.style.color = reserve ? "white" : "#17351f";
+
+grille.appendChild(caseJour);
+  }
+}
+
+document.getElementById("mois-precedent").onclick = () => {
+  moisAdmin.setMonth(moisAdmin.getMonth() - 1);
+  afficherCalendrierAdmin();
+};
+
+document.getElementById("mois-suivant").onclick = () => {
+  moisAdmin.setMonth(moisAdmin.getMonth() + 1);
+  afficherCalendrierAdmin();
+};
+
+document.getElementById("calendrier-logement").onchange = afficherCalendrierAdmin;
+
+afficherCalendrierAdmin();
 </script>
+
 
 </body>
 </html>
