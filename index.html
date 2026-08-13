@@ -306,6 +306,8 @@ if (!paiement.ok || !resultatPaiement.paymentUrl) {
 }
 
 alert("✅ Vos dates sont disponibles. Vous allez être redirigé vers le paiement sécurisé SumUp.");
+  sessionStorage.setItem("reservationEnAttente", JSON.stringify(reservation));
+sessionStorage.setItem("sumupCheckoutId", resultatPaiement.checkoutId);  
     window.location.href = resultatPaiement.paymentUrl;
   } catch (erreur) {
     alert("Erreur lors de la réservation. Merci de réessayer.");
