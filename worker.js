@@ -12,7 +12,54 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, { headers });
     }
+// =========================
+// VERIFIER LES DISPONIBILITES
+// =========================
+if (url.pathname === "/check-availability" && request.method === "POST") {
+  const reservation = await request.json();
 
+  if (
+    !reservation.logement ||
+    !reservation.arrivee ||
+    !reservation.depart
+  ) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Informations manquantes."
+      }),
+      { status: 400, headers }
+    );
+  }
+
+  const data = await env.RESERVATIONS.get("reservations");
+  const reservations = data ? JSON.parse(data) : [];
+
+  const conflit = reservations.some(r =>
+    r.logement === reservation.logement &&
+    reservation.arrivee < r.depart &&
+    reservation.depart > r.arrivee
+  );
+
+  if (conflit) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Ces dates sont déjà réservées."
+      }),
+      { status: 409, headers }
+    );
+  }
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message: "Dates disponibles."
+    }),
+    { headers }
+  );
+}
+    
     // =========================
     // LIRE LES RÉSERVATIONS
     // =========================
