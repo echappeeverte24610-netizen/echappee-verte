@@ -275,7 +275,7 @@ const reservation = {
 };
 
   try {
-    const reponse = await fetch("/reservations", {
+    const reponse = await fetch("/check-availability", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -388,7 +388,57 @@ document.getElementById("mois-suivant").addEventListener("click", () => {
   dateCalendrier.setMonth(dateCalendrier.getMonth() + 1);
   chargerCalendrier();
 });
-chargerCalendrier();
+async function verifierRetourPaiement() {
+  const params = new URLSearchParams(window.location.search);
+
+  if (params.get("paiement") !== "retour") return;
+
+  const checkoutId = sessionStorage.getItem("sumupCheckoutId");
+  const reservation = JSON.parse(
+    sessionStorage.getItem("reservationEnAttente") || "null"
+  );
+
+  if (!checkoutId || !reservation) {
+    alert("Impossible de vérifier le paiement.");
+    return;
+  }
+
+  try {
+    const reponse = await fetch(
+      "/check-payment?checkoutId=" + encodeURIComponent(checkoutId)
+    );
+
+    const resultat = await reponse.json();
+
+    if (resultat.success && resultat.paid) {
+      const confirmation = await fetch("/reservations", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify(reservation)
+});
+
+const resultatConfirmation = await confirmation.json();
+
+if (!confirmation.ok) {
+  alert(resultatConfirmation.message || "Paiement accepté, mais erreur lors de l'enregistrement de la réservation.");
+  return;
+}
+      alert("✅ Paiement accepté. Votre réservation est confirmée.");
+      sessionStorage.removeItem("sumupCheckoutId");
+      sessionStorage.removeItem("reservationEnAttente");
+      window.history.replaceState({}, "", window.location.pathname);
+    } else {
+      alert("⚠️ Le paiement n'a pas été validé. Votre réservation n'est pas confirmée.");
+    }
+  } catch (erreur) {
+    alert("Impossible de vérifier le paiement SumUp.");
+  }
+}
+
+verifierRetourPaiement();
+  chargerCalendrier();
 </script>
 
 </body>
