@@ -182,7 +182,7 @@ align-items: center !important;
   </div>
   <h2>📅 Demande de réservation</h2>
 
-  <form action="https://formsubmit.co/echappee.verte.24610@gmail.com" method="POST">
+  <form id="reservationForm">
     <input type="hidden" name="_template" value="table">
     <input type="hidden" name="_subject" value="🌿 Nouvelle réservation - L'Échappée Verte">
     <label>Logement</label>
@@ -290,7 +290,22 @@ const reservation = {
       return;
     }
 
-    form.submit();
+  const paiement = await fetch("/create-checkout", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify(reservation)
+});
+
+const resultatPaiement = await paiement.json();
+
+if (!paiement.ok || !resultatPaiement.paymentUrl) {
+  alert(resultatPaiement.message || "Impossible de créer le paiement SumUp.");
+  return;
+}
+
+window.location.href = resultatPaiement.paymentUrl;
   } catch (erreur) {
     alert("Erreur lors de la réservation. Merci de réessayer.");
   }
