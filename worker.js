@@ -202,6 +202,54 @@ export default {
         );
       }
     }
+    // ==============================
+// VERIFIER LE PAIEMENT SUMUP
+// ==============================
+if (url.pathname === "/check-payment" && request.method === "GET") {
+
+  const checkoutId = url.searchParams.get("checkoutId");
+
+  if (!checkoutId) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Identifiant de paiement manquant"
+      }),
+      { status: 400, headers }
+    );
+  }
+
+  const sumupResponse = await fetch(
+    `https://api.sumup.com/v0.1/checkouts/${checkoutId}`,
+    {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${env.SUMUP_API_KEY}`
+      }
+    }
+  );
+
+  const checkout = await sumupResponse.json();
+
+  if (!sumupResponse.ok) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Impossible de vérifier le paiement"
+      }),
+      { status: 502, headers }
+    );
+  }
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      paid: checkout.status === "PAID",
+      status: checkout.status
+    }),
+    { headers }
+  );
+}
 
     // =========================
     // SUPPRIMER UNE RÉSERVATION
