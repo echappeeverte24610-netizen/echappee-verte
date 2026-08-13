@@ -305,7 +305,8 @@ if (!paiement.ok || !resultatPaiement.paymentUrl) {
   return;
 }
 
-window.location.href = resultatPaiement.paymentUrl;
+alert("✅ Vos dates sont disponibles. Vous allez être redirigé vers le paiement sécurisé SumUp.");
+    window.location.href = resultatPaiement.paymentUrl;
   } catch (erreur) {
     alert("Erreur lors de la réservation. Merci de réessayer.");
   }
