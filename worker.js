@@ -322,10 +322,10 @@ if (url.pathname === "/check-payment" && request.method === "GET") {
       const reservations = data ? JSON.parse(data) : [];
 
       const index = reservations.findIndex(r =>
-        r.logement === suppression.logement &&
-        r.arrivee === suppression.arrivee &&
-        r.depart === suppression.depart
-      );
+  r.logement === suppression.logement &&
+  r.arrivee < suppression.depart &&
+  r.depart > suppression.arrivee
+);
 
       if (index === -1) {
         return new Response(
