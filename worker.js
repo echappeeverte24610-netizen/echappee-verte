@@ -175,9 +175,9 @@ if (url.pathname === "/check-availability" && request.method === "POST") {
         let prixNuit;
 
         if (logement.includes("maison")) {
-          prixNuit = 200;
+          prixNuit = 1;
         } else if (logement.includes("studio")) {
-          prixNuit = 65;
+          prixNuit = 1;
         } else {
           return new Response(
             JSON.stringify({
