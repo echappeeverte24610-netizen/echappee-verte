@@ -249,7 +249,7 @@ function calculerPrix() {
     return;
   }
 
-  const prixNuit = logement.selectedIndex === 0 ? 200 : 65;
+  const prixNuit = logement.selectedIndex === 0 ? 1 : 1;
   const montant = nuits * prixNuit;
 document.getElementById("montantEmail").value = montant + " €";
   total.innerHTML =
