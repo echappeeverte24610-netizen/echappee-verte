@@ -1,9 +1,18 @@
 {
+  "$schema": "node_modules/wrangler/config-schema.json",
   "name": "echappee-verte-reservation",
   "main": "worker.js",
   "compatibility_date": "2026-08-11",
+
   "assets": {
     "directory": ".",
     "binding": "ASSETS"
-  }
+  },
+
+  "kv_namespaces": [
+    {
+      "binding": "RESERVATIONS",
+      "id": "7934c360acd94403ae24b05fac8b2fe8"
+    }
+  ]
 }
