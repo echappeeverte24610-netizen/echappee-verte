@@ -1,3 +1,105 @@
+function estMaison(logement) {
+  return String(logement || "").toLowerCase().includes("maison");
+}
+
+function dateIcalVersIso(valeur) {
+  const match = String(valeur || "").match(/(\d{4})(\d{2})(\d{2})/);
+  if (!match) return null;
+  return `${match[1]}-${match[2]}-${match[3]}`;
+}
+
+function lireCalendrierIcal(texte) {
+  // Déplie les lignes iCalendar qui continuent sur la ligne suivante
+  const unfolded = texte.replace(/\r?\n[ \t]/g, "");
+  const blocs = unfolded.match(/BEGIN:VEVENT[\s\S]*?END:VEVENT/g) || [];
+
+  return blocs.map(bloc => {
+    const debut =
+      bloc.match(/DTSTART(?:;[^:]*)?:(\d{8})/)?.[1] || null;
+
+    const fin =
+      bloc.match(/DTEND(?:;[^:]*)?:(\d{8})/)?.[1] || null;
+
+    return {
+      arrivee: dateIcalVersIso(debut),
+      depart: dateIcalVersIso(fin)
+    };
+  }).filter(r => r.arrivee && r.depart);
+}
+
+async function reservationsAirbnbMaison(env) {
+  if (!env.AIRBNB_MAISON_ICAL) return [];
+
+  try {
+    const response = await fetch(env.AIRBNB_MAISON_ICAL, {
+      headers: {
+        "User-Agent": "Echappee-Verte-Calendar-Sync"
+      }
+    });
+
+    if (!response.ok) {
+      console.log("Erreur calendrier Airbnb :", response.status);
+      return [];
+    }
+
+    const ical = await response.text();
+    return lireCalendrierIcal(ical);
+  } catch (error) {
+    console.log("Erreur récupération Airbnb :", error);
+    return [];
+  }
+}
+
+function conflitDates(arrivee, depart, reservation) {
+  return (
+    arrivee < reservation.depart &&
+    depart > reservation.arrivee
+  );
+}
+
+function echapperIcal(texte) {
+  return String(texte || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+
+function dateIsoVersIcal(date) {
+  return String(date || "").replaceAll("-", "");
+}
+
+function calendrierMaison(reservations) {
+  const lignes = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//L'Echappee Verte//Reservations Maison//FR",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "X-WR-CALNAME:L'Echappée Verte - Maison"
+  ];
+
+  for (const r of reservations) {
+    if (!estMaison(r.logement)) continue;
+    if (!r.arrivee || !r.depart) continue;
+
+    lignes.push(
+      "BEGIN:VEVENT",
+      `UID:${echapperIcal(r.id || crypto.randomUUID())}@echappee-verte`,
+      `DTSTART;VALUE=DATE:${dateIsoVersIcal(r.arrivee)}`,
+      `DTEND;VALUE=DATE:${dateIsoVersIcal(r.depart)}`,
+      "SUMMARY:Réservé - L'Échappée Verte",
+      "STATUS:CONFIRMED",
+      "TRANSP:OPAQUE",
+      "END:VEVENT"
+    );
+  }
+
+  lignes.push("END:VCALENDAR");
+
+  return lignes.join("\r\n");
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -12,58 +114,102 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, { headers });
     }
-// =========================
-// VERIFIER LES DISPONIBILITES
-// =========================
-if (url.pathname === "/check-availability" && request.method === "POST") {
-  const reservation = await request.json();
 
-  if (
-    !reservation.logement ||
-    !reservation.arrivee ||
-    !reservation.depart
-  ) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        message: "Informations manquantes."
-      }),
-      { status: 400, headers }
-    );
-  }
+    // ==========================================
+    // CALENDRIER MAISON A EXPORTER VERS AIRBNB
+    // ==========================================
+    if (
+      url.pathname === "/calendar/maison.ics" &&
+      request.method === "GET"
+    ) {
+      const data = await env.RESERVATIONS.get("reservations");
+      const reservations = data ? JSON.parse(data) : [];
 
-  const data = await env.RESERVATIONS.get("reservations");
-  const reservations = data ? JSON.parse(data) : [];
+      const ical = calendrierMaison(reservations);
 
-  const conflit = reservations.some(r =>
-    r.logement === reservation.logement &&
-    reservation.arrivee < r.depart &&
-    reservation.depart > r.arrivee
-  );
+      return new Response(ical, {
+        headers: {
+          "Content-Type": "text/calendar; charset=UTF-8",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
+    }
 
-  if (conflit) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        message: "Ces dates sont déjà réservées."
-      }),
-      { status: 409, headers }
-    );
-  }
+    // =========================
+    // VERIFIER LES DISPONIBILITES
+    // =========================
+    if (
+      url.pathname === "/check-availability" &&
+      request.method === "POST"
+    ) {
+      const reservation = await request.json();
 
-  return new Response(
-    JSON.stringify({
-      success: true,
-      message: "Dates disponibles."
-    }),
-    { headers }
-  );
-}
-    
+      if (
+        !reservation.logement ||
+        !reservation.arrivee ||
+        !reservation.depart
+      ) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: "Informations manquantes."
+          }),
+          { status: 400, headers }
+        );
+      }
+
+      const data = await env.RESERVATIONS.get("reservations");
+      const reservations = data ? JSON.parse(data) : [];
+
+      let conflit = reservations.some(r =>
+        r.logement === reservation.logement &&
+        conflitDates(
+          reservation.arrivee,
+          reservation.depart,
+          r
+        )
+      );
+
+      // Vérification Airbnb uniquement pour la Maison
+      if (!conflit && estMaison(reservation.logement)) {
+        const airbnb = await reservationsAirbnbMaison(env);
+
+        conflit = airbnb.some(r =>
+          conflitDates(
+            reservation.arrivee,
+            reservation.depart,
+            r
+          )
+        );
+      }
+
+      if (conflit) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: "Ces dates sont déjà réservées."
+          }),
+          { status: 409, headers }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Dates disponibles."
+        }),
+        { headers }
+      );
+    }
+
     // =========================
     // LIRE LES RÉSERVATIONS
     // =========================
-    if (url.pathname === "/reservations" && request.method === "GET") {
+    if (
+      url.pathname === "/reservations" &&
+      request.method === "GET"
+    ) {
       const data = await env.RESERVATIONS.get("reservations");
 
       return new Response(data || "[]", {
@@ -74,7 +220,10 @@ if (url.pathname === "/check-availability" && request.method === "POST") {
     // =========================
     // AJOUTER UNE RÉSERVATION
     // =========================
-    if (url.pathname === "/reservations" && request.method === "POST") {
+    if (
+      url.pathname === "/reservations" &&
+      request.method === "POST"
+    ) {
       const reservation = await request.json();
 
       if (
@@ -96,11 +245,27 @@ if (url.pathname === "/check-availability" && request.method === "POST") {
       const data = await env.RESERVATIONS.get("reservations");
       const reservations = data ? JSON.parse(data) : [];
 
-      const conflit = reservations.some(r =>
+      let conflit = reservations.some(r =>
         r.logement === reservation.logement &&
-        reservation.arrivee < r.depart &&
-        reservation.depart > r.arrivee
+        conflitDates(
+          reservation.arrivee,
+          reservation.depart,
+          r
+        )
       );
+
+      // Double sécurité Airbnb au moment de l'enregistrement
+      if (!conflit && estMaison(reservation.logement)) {
+        const airbnb = await reservationsAirbnbMaison(env);
+
+        conflit = airbnb.some(r =>
+          conflitDates(
+            reservation.arrivee,
+            reservation.depart,
+            r
+          )
+        );
+      }
 
       if (conflit) {
         return new Response(
@@ -135,7 +300,10 @@ if (url.pathname === "/check-availability" && request.method === "POST") {
     // =========================
     // CRÉER LE PAIEMENT SUMUP
     // =========================
-    if (url.pathname === "/create-checkout" && request.method === "POST") {
+    if (
+      url.pathname === "/create-checkout" &&
+      request.method === "POST"
+    ) {
       try {
         const booking = await request.json();
 
@@ -153,8 +321,11 @@ if (url.pathname === "/check-availability" && request.method === "POST") {
           );
         }
 
-        const arrivee = new Date(booking.arrivee + "T00:00:00Z");
-        const depart = new Date(booking.depart + "T00:00:00Z");
+        const arrivee =
+          new Date(booking.arrivee + "T00:00:00Z");
+
+        const depart =
+          new Date(booking.depart + "T00:00:00Z");
 
         const nuits = Math.round(
           (depart.getTime() - arrivee.getTime()) / 86400000
@@ -170,7 +341,8 @@ if (url.pathname === "/check-availability" && request.method === "POST") {
           );
         }
 
-        const logement = String(booking.logement).toLowerCase();
+        const logement =
+          String(booking.logement).toLowerCase();
 
         let prixNuit;
 
@@ -196,7 +368,8 @@ if (url.pathname === "/check-availability" && request.method === "POST") {
           {
             method: "POST",
             headers: {
-              "Authorization": `Bearer ${env.SUMUP_API_KEY}`,
+              "Authorization":
+                `Bearer ${env.SUMUP_API_KEY}`,
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
@@ -206,7 +379,8 @@ if (url.pathname === "/check-availability" && request.method === "POST") {
               checkout_reference: reference,
               description:
                 `L'Echappee Verte - ${booking.logement} - ${nuits} nuit(s)`,
-              redirect_url: `${url.origin}/index.html?paiement=retour`,
+              redirect_url:
+                `${url.origin}/index.html?paiement=retour`,
               hosted_checkout: {
                 enabled: true
               }
@@ -220,7 +394,8 @@ if (url.pathname === "/check-availability" && request.method === "POST") {
           return new Response(
             JSON.stringify({
               success: false,
-              message: "Impossible de créer le paiement SumUp.",
+              message:
+                "Impossible de créer le paiement SumUp.",
               details: checkout
             }),
             { status: 502, headers }
@@ -233,7 +408,8 @@ if (url.pathname === "/check-availability" && request.method === "POST") {
             montant,
             nuits,
             checkoutId: checkout.id,
-            paymentUrl: checkout.hosted_checkout_url
+            paymentUrl:
+              checkout.hosted_checkout_url
           }),
           { headers }
         );
@@ -242,66 +418,77 @@ if (url.pathname === "/check-availability" && request.method === "POST") {
         return new Response(
           JSON.stringify({
             success: false,
-            message: "Erreur lors de la création du paiement.",
+            message:
+              "Erreur lors de la création du paiement.",
             error: error.message
           }),
           { status: 500, headers }
         );
       }
     }
-    // ==============================
-// VERIFIER LE PAIEMENT SUMUP
-// ==============================
-if (url.pathname === "/check-payment" && request.method === "GET") {
 
-  const checkoutId = url.searchParams.get("checkoutId");
+    // =========================
+    // VERIFIER LE PAIEMENT SUMUP
+    // =========================
+    if (
+      url.pathname === "/check-payment" &&
+      request.method === "GET"
+    ) {
+      const checkoutId =
+        url.searchParams.get("checkoutId");
 
-  if (!checkoutId) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        message: "Identifiant de paiement manquant"
-      }),
-      { status: 400, headers }
-    );
-  }
-
-  const sumupResponse = await fetch(
-    `https://api.sumup.com/v0.1/checkouts/${checkoutId}`,
-    {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${env.SUMUP_API_KEY}`
+      if (!checkoutId) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: "Identifiant de paiement manquant"
+          }),
+          { status: 400, headers }
+        );
       }
+
+      const sumupResponse = await fetch(
+        `https://api.sumup.com/v0.1/checkouts/${checkoutId}`,
+        {
+          method: "GET",
+          headers: {
+            "Authorization":
+              `Bearer ${env.SUMUP_API_KEY}`
+          }
+        }
+      );
+
+      const checkout =
+        await sumupResponse.json();
+
+      if (!sumupResponse.ok) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message:
+              "Impossible de vérifier le paiement"
+          }),
+          { status: 502, headers }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          paid: checkout.status === "PAID",
+          status: checkout.status
+        }),
+        { headers }
+      );
     }
-  );
-
-  const checkout = await sumupResponse.json();
-
-  if (!sumupResponse.ok) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        message: "Impossible de vérifier le paiement"
-      }),
-      { status: 502, headers }
-    );
-  }
-
-  return new Response(
-    JSON.stringify({
-      success: true,
-      paid: checkout.status === "PAID",
-      status: checkout.status
-    }),
-    { headers }
-  );
-}
 
     // =========================
     // SUPPRIMER UNE RÉSERVATION
     // =========================
-    if (url.pathname === "/reservations" && request.method === "DELETE") {
+    if (
+      url.pathname === "/reservations" &&
+      request.method === "DELETE"
+    ) {
       const suppression = await request.json();
 
       if (
@@ -322,10 +509,10 @@ if (url.pathname === "/check-payment" && request.method === "GET") {
       const reservations = data ? JSON.parse(data) : [];
 
       const index = reservations.findIndex(r =>
-  r.logement === suppression.logement &&
-  r.arrivee < suppression.depart &&
-  r.depart > suppression.arrivee
-);
+        r.logement === suppression.logement &&
+        r.arrivee < suppression.depart &&
+        r.depart > suppression.arrivee
+      );
 
       if (index === -1) {
         return new Response(
@@ -368,7 +555,8 @@ if (url.pathname === "/check-payment" && request.method === "GET") {
 
     return new Response(
       JSON.stringify({
-        message: "L'Échappée Verte - API réservation"
+        message:
+          "L'Échappée Verte - API réservation"
       }),
       { headers }
     );
