@@ -2,6 +2,10 @@ function estMaison(logement) {
   return String(logement || "").toLowerCase().includes("maison");
 }
 
+function estStudio(logement) {
+  return String(logement || "").toLowerCase().includes("studio");
+}
+
 function dateIcalVersIso(valeur) {
   const match = String(valeur || "").match(/(\d{4})(\d{2})(\d{2})/);
   if (!match) return null;
@@ -9,7 +13,6 @@ function dateIcalVersIso(valeur) {
 }
 
 function lireCalendrierIcal(texte) {
-  // Déplie les lignes iCalendar qui continuent sur la ligne suivante
   const unfolded = texte.replace(/\r?\n[ \t]/g, "");
   const blocs = unfolded.match(/BEGIN:VEVENT[\s\S]*?END:VEVENT/g) || [];
 
@@ -27,27 +30,48 @@ function lireCalendrierIcal(texte) {
   }).filter(r => r.arrivee && r.depart);
 }
 
-async function reservationsAirbnbMaison(env) {
-  if (!env.AIRBNB_MAISON_ICAL) return [];
+async function reservationsAirbnb(urlIcal, nom) {
+  if (!urlIcal) return [];
 
   try {
-    const response = await fetch(env.AIRBNB_MAISON_ICAL, {
+    const response = await fetch(urlIcal, {
       headers: {
         "User-Agent": "Echappee-Verte-Calendar-Sync"
       }
     });
 
     if (!response.ok) {
-      console.log("Erreur calendrier Airbnb :", response.status);
+      console.log(
+        `Erreur calendrier Airbnb ${nom} :`,
+        response.status
+      );
       return [];
     }
 
     const ical = await response.text();
     return lireCalendrierIcal(ical);
+
   } catch (error) {
-    console.log("Erreur récupération Airbnb :", error);
+    console.log(
+      `Erreur récupération Airbnb ${nom} :`,
+      error
+    );
     return [];
   }
+}
+
+async function reservationsAirbnbMaison(env) {
+  return reservationsAirbnb(
+    env.AIRBNB_MAISON_ICAL,
+    "Maison"
+  );
+}
+
+async function reservationsAirbnbStudio(env) {
+  return reservationsAirbnb(
+    env.AIRBNB_STUDIO_ICAL,
+    "Studio"
+  );
 }
 
 function conflitDates(arrivee, depart, reservation) {
@@ -69,23 +93,29 @@ function dateIsoVersIcal(date) {
   return String(date || "").replaceAll("-", "");
 }
 
-function calendrierMaison(reservations) {
+function calendrierLogement(reservations, type) {
+  const maison = type === "maison";
+  const nom = maison ? "Maison" : "Studio";
+  const correspond = maison ? estMaison : estStudio;
+
   const lignes = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//L'Echappee Verte//Reservations Maison//FR",
+    `PRODID:-//L'Echappee Verte//Reservations ${nom}//FR`,
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    "X-WR-CALNAME:L'Echappée Verte - Maison"
+    `X-WR-CALNAME:L'Echappée Verte - ${nom}`
   ];
 
   for (const r of reservations) {
-    if (!estMaison(r.logement)) continue;
+    if (!correspond(r.logement)) continue;
     if (!r.arrivee || !r.depart) continue;
 
     lignes.push(
       "BEGIN:VEVENT",
-      `UID:${echapperIcal(r.id || crypto.randomUUID())}@echappee-verte`,
+      `UID:${echapperIcal(
+        r.id || crypto.randomUUID()
+      )}@echappee-verte`,
       `DTSTART;VALUE=DATE:${dateIsoVersIcal(r.arrivee)}`,
       `DTEND;VALUE=DATE:${dateIsoVersIcal(r.depart)}`,
       "SUMMARY:Réservé - L'Échappée Verte",
@@ -100,15 +130,48 @@ function calendrierMaison(reservations) {
   return lignes.join("\r\n");
 }
 
+function calendrierMaison(reservations) {
+  return calendrierLogement(reservations, "maison");
+}
+
+function calendrierStudio(reservations) {
+  return calendrierLogement(reservations, "studio");
+}
+
+async function conflitAvecAirbnb(reservation, env) {
+  let airbnb = [];
+
+  if (estMaison(reservation.logement)) {
+    airbnb = await reservationsAirbnbMaison(env);
+
+  } else if (estStudio(reservation.logement)) {
+    airbnb = await reservationsAirbnbStudio(env);
+
+  } else {
+    return false;
+  }
+
+  return airbnb.some(r =>
+    conflitDates(
+      reservation.arrivee,
+      reservation.depart,
+      r
+    )
+  );
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
     const headers = {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Content-Type": "application/json; charset=UTF-8"
+      "Access-Control-Allow-Methods":
+        "GET, POST, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers":
+        "Content-Type",
+      "Content-Type":
+        "application/json; charset=UTF-8"
     };
 
     if (request.method === "OPTIONS") {
@@ -116,29 +179,42 @@ export default {
     }
 
     // ==========================================
-    // CALENDRIER MAISON A EXPORTER VERS AIRBNB
+    // CALENDRIERS MAISON ET STUDIO VERS AIRBNB
     // ==========================================
+
     if (
-      url.pathname === "/calendar/maison.ics" &&
+      (
+        url.pathname === "/calendar/maison.ics" ||
+        url.pathname === "/calendar/studio.ics"
+      ) &&
       request.method === "GET"
     ) {
-      const data = await env.RESERVATIONS.get("reservations");
-      const reservations = data ? JSON.parse(data) : [];
+      const data =
+        await env.RESERVATIONS.get("reservations");
 
-      const ical = calendrierMaison(reservations);
+      const reservations =
+        data ? JSON.parse(data) : [];
+
+      const ical =
+        url.pathname === "/calendar/maison.ics"
+          ? calendrierMaison(reservations)
+          : calendrierStudio(reservations);
 
       return new Response(ical, {
         headers: {
-          "Content-Type": "text/calendar; charset=UTF-8",
-          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "Content-Type":
+            "text/calendar; charset=UTF-8",
+          "Cache-Control":
+            "no-cache, no-store, must-revalidate",
           "Access-Control-Allow-Origin": "*"
         }
       });
     }
 
     // =========================
-    // VERIFIER LES DISPONIBILITES
+    // VERIFIER DISPONIBILITES
     // =========================
+
     if (
       url.pathname === "/check-availability" &&
       request.method === "POST"
@@ -155,12 +231,18 @@ export default {
             success: false,
             message: "Informations manquantes."
           }),
-          { status: 400, headers }
+          {
+            status: 400,
+            headers
+          }
         );
       }
 
-      const data = await env.RESERVATIONS.get("reservations");
-      const reservations = data ? JSON.parse(data) : [];
+      const data =
+        await env.RESERVATIONS.get("reservations");
+
+      const reservations =
+        data ? JSON.parse(data) : [];
 
       let conflit = reservations.some(r =>
         r.logement === reservation.logement &&
@@ -171,26 +253,27 @@ export default {
         )
       );
 
-      // Vérification Airbnb uniquement pour la Maison
-      if (!conflit && estMaison(reservation.logement)) {
-        const airbnb = await reservationsAirbnbMaison(env);
+      // Vérifie Airbnb Maison OU Studio
 
-        conflit = airbnb.some(r =>
-          conflitDates(
-            reservation.arrivee,
-            reservation.depart,
-            r
-          )
-        );
+      if (!conflit) {
+        conflit =
+          await conflitAvecAirbnb(
+            reservation,
+            env
+          );
       }
 
       if (conflit) {
         return new Response(
           JSON.stringify({
             success: false,
-            message: "Ces dates sont déjà réservées."
+            message:
+              "Ces dates sont déjà réservées."
           }),
-          { status: 409, headers }
+          {
+            status: 409,
+            headers
+          }
         );
       }
 
@@ -204,27 +287,32 @@ export default {
     }
 
     // =========================
-    // LIRE LES RÉSERVATIONS
+    // LIRE LES RESERVATIONS
     // =========================
+
     if (
       url.pathname === "/reservations" &&
       request.method === "GET"
     ) {
-      const data = await env.RESERVATIONS.get("reservations");
+      const data =
+        await env.RESERVATIONS.get("reservations");
 
-      return new Response(data || "[]", {
-        headers
-      });
+      return new Response(
+        data || "[]",
+        { headers }
+      );
     }
 
     // =========================
-    // AJOUTER UNE RÉSERVATION
+    // AJOUTER UNE RESERVATION
     // =========================
+
     if (
       url.pathname === "/reservations" &&
       request.method === "POST"
     ) {
-      const reservation = await request.json();
+      const reservation =
+        await request.json();
 
       if (
         !reservation.logement ||
@@ -236,14 +324,23 @@ export default {
         return new Response(
           JSON.stringify({
             success: false,
-            message: "Informations manquantes."
+            message:
+              "Informations manquantes."
           }),
-          { status: 400, headers }
+          {
+            status: 400,
+            headers
+          }
         );
       }
 
-      const data = await env.RESERVATIONS.get("reservations");
-      const reservations = data ? JSON.parse(data) : [];
+      const data =
+        await env.RESERVATIONS.get(
+          "reservations"
+        );
+
+      const reservations =
+        data ? JSON.parse(data) : [];
 
       let conflit = reservations.some(r =>
         r.logement === reservation.logement &&
@@ -254,31 +351,36 @@ export default {
         )
       );
 
-      // Double sécurité Airbnb au moment de l'enregistrement
-      if (!conflit && estMaison(reservation.logement)) {
-        const airbnb = await reservationsAirbnbMaison(env);
+      // Double sécurité Airbnb
+      // Maison ET Studio
 
-        conflit = airbnb.some(r =>
-          conflitDates(
-            reservation.arrivee,
-            reservation.depart,
-            r
-          )
-        );
+      if (!conflit) {
+        conflit =
+          await conflitAvecAirbnb(
+            reservation,
+            env
+          );
       }
 
       if (conflit) {
         return new Response(
           JSON.stringify({
             success: false,
-            message: "Ces dates sont déjà réservées."
+            message:
+              "Ces dates sont déjà réservées."
           }),
-          { status: 409, headers }
+          {
+            status: 409,
+            headers
+          }
         );
       }
 
-      reservation.id = crypto.randomUUID();
-      reservation.createdAt = new Date().toISOString();
+      reservation.id =
+        crypto.randomUUID();
+
+      reservation.createdAt =
+        new Date().toISOString();
 
       reservations.push(reservation);
 
@@ -290,22 +392,26 @@ export default {
       return new Response(
         JSON.stringify({
           success: true,
-          reservationId: reservation.id,
-          message: "Demande de réservation enregistrée."
+          reservationId:
+            reservation.id,
+          message:
+            "Demande de réservation enregistrée."
         }),
         { headers }
       );
     }
 
     // =========================
-    // CRÉER LE PAIEMENT SUMUP
+    // PAIEMENT SUMUP
     // =========================
+
     if (
       url.pathname === "/create-checkout" &&
       request.method === "POST"
     ) {
       try {
-        const booking = await request.json();
+        const booking =
+          await request.json();
 
         if (
           !booking.logement ||
@@ -315,80 +421,130 @@ export default {
           return new Response(
             JSON.stringify({
               success: false,
-              message: "Informations de réservation manquantes."
+              message:
+                "Informations de réservation manquantes."
             }),
-            { status: 400, headers }
+            {
+              status: 400,
+              headers
+            }
           );
         }
 
         const arrivee =
-          new Date(booking.arrivee + "T00:00:00Z");
+          new Date(
+            booking.arrivee +
+            "T00:00:00Z"
+          );
 
         const depart =
-          new Date(booking.depart + "T00:00:00Z");
+          new Date(
+            booking.depart +
+            "T00:00:00Z"
+          );
 
-        const nuits = Math.round(
-          (depart.getTime() - arrivee.getTime()) / 86400000
-        );
+        const nuits =
+          Math.round(
+            (
+              depart.getTime() -
+              arrivee.getTime()
+            ) / 86400000
+          );
 
-        if (!Number.isFinite(nuits) || nuits <= 0) {
+        if (
+          !Number.isFinite(nuits) ||
+          nuits <= 0
+        ) {
           return new Response(
             JSON.stringify({
               success: false,
-              message: "Dates de séjour invalides."
+              message:
+                "Dates de séjour invalides."
             }),
-            { status: 400, headers }
+            {
+              status: 400,
+              headers
+            }
           );
         }
 
         const logement =
-          String(booking.logement).toLowerCase();
+          String(
+            booking.logement
+          ).toLowerCase();
 
         let prixNuit;
 
-        if (logement.includes("maison")) {
+        if (
+          logement.includes("maison")
+        ) {
           prixNuit = 200;
-        } else if (logement.includes("studio")) {
+
+        } else if (
+          logement.includes("studio")
+        ) {
           prixNuit = 65;
+
         } else {
           return new Response(
             JSON.stringify({
               success: false,
-              message: "Logement inconnu."
+              message:
+                "Logement inconnu."
             }),
-            { status: 400, headers }
+            {
+              status: 400,
+              headers
+            }
           );
         }
 
-        const montant = nuits * prixNuit;
-        const reference = "EV-" + crypto.randomUUID();
+        const montant =
+          nuits * prixNuit;
 
-        const sumupResponse = await fetch(
-          "https://api.sumup.com/v0.1/checkouts",
-          {
-            method: "POST",
-            headers: {
-              "Authorization":
-                `Bearer ${env.SUMUP_API_KEY}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              merchant_code: "M4TDFVD8",
-              amount: montant,
-              currency: "EUR",
-              checkout_reference: reference,
-              description:
-                `L'Echappee Verte - ${booking.logement} - ${nuits} nuit(s)`,
-              redirect_url:
-                `${url.origin}/index.html?paiement=retour`,
-              hosted_checkout: {
-                enabled: true
-              }
-            })
-          }
-        );
+        const reference =
+          "EV-" +
+          crypto.randomUUID();
 
-        const checkout = await sumupResponse.json();
+        const sumupResponse =
+          await fetch(
+            "https://api.sumup.com/v0.1/checkouts",
+            {
+              method: "POST",
+
+              headers: {
+                "Authorization":
+                  `Bearer ${env.SUMUP_API_KEY}`,
+                "Content-Type":
+                  "application/json"
+              },
+
+              body: JSON.stringify({
+                merchant_code:
+                  "M4TDFVD8",
+
+                amount: montant,
+
+                currency: "EUR",
+
+                checkout_reference:
+                  reference,
+
+                description:
+                  `L'Echappee Verte - ${booking.logement} - ${nuits} nuit(s)`,
+
+                redirect_url:
+                  `${url.origin}/index.html?paiement=retour`,
+
+                hosted_checkout: {
+                  enabled: true
+                }
+              })
+            }
+          );
+
+        const checkout =
+          await sumupResponse.json();
 
         if (!sumupResponse.ok) {
           return new Response(
@@ -396,9 +552,13 @@ export default {
               success: false,
               message:
                 "Impossible de créer le paiement SumUp.",
-              details: checkout
+              details:
+                checkout
             }),
-            { status: 502, headers }
+            {
+              status: 502,
+              headers
+            }
           );
         }
 
@@ -407,7 +567,8 @@ export default {
             success: true,
             montant,
             nuits,
-            checkoutId: checkout.id,
+            checkoutId:
+              checkout.id,
             paymentUrl:
               checkout.hosted_checkout_url
           }),
@@ -420,43 +581,56 @@ export default {
             success: false,
             message:
               "Erreur lors de la création du paiement.",
-            error: error.message
+            error:
+              error.message
           }),
-          { status: 500, headers }
+          {
+            status: 500,
+            headers
+          }
         );
       }
     }
 
     // =========================
-    // VERIFIER LE PAIEMENT SUMUP
+    // VERIFIER PAIEMENT SUMUP
     // =========================
+
     if (
       url.pathname === "/check-payment" &&
       request.method === "GET"
     ) {
       const checkoutId =
-        url.searchParams.get("checkoutId");
+        url.searchParams.get(
+          "checkoutId"
+        );
 
       if (!checkoutId) {
         return new Response(
           JSON.stringify({
             success: false,
-            message: "Identifiant de paiement manquant"
+            message:
+              "Identifiant de paiement manquant"
           }),
-          { status: 400, headers }
+          {
+            status: 400,
+            headers
+          }
         );
       }
 
-      const sumupResponse = await fetch(
-        `https://api.sumup.com/v0.1/checkouts/${checkoutId}`,
-        {
-          method: "GET",
-          headers: {
-            "Authorization":
-              `Bearer ${env.SUMUP_API_KEY}`
+      const sumupResponse =
+        await fetch(
+          `https://api.sumup.com/v0.1/checkouts/${checkoutId}`,
+          {
+            method: "GET",
+
+            headers: {
+              "Authorization":
+                `Bearer ${env.SUMUP_API_KEY}`
+            }
           }
-        }
-      );
+        );
 
       const checkout =
         await sumupResponse.json();
@@ -468,28 +642,35 @@ export default {
             message:
               "Impossible de vérifier le paiement"
           }),
-          { status: 502, headers }
+          {
+            status: 502,
+            headers
+          }
         );
       }
 
       return new Response(
         JSON.stringify({
           success: true,
-          paid: checkout.status === "PAID",
-          status: checkout.status
+          paid:
+            checkout.status === "PAID",
+          status:
+            checkout.status
         }),
         { headers }
       );
     }
 
     // =========================
-    // SUPPRIMER UNE RÉSERVATION
+    // SUPPRIMER RESERVATION
     // =========================
+
     if (
       url.pathname === "/reservations" &&
       request.method === "DELETE"
     ) {
-      const suppression = await request.json();
+      const suppression =
+        await request.json();
 
       if (
         !suppression.logement ||
@@ -499,32 +680,52 @@ export default {
         return new Response(
           JSON.stringify({
             success: false,
-            message: "Informations manquantes."
+            message:
+              "Informations manquantes."
           }),
-          { status: 400, headers }
+          {
+            status: 400,
+            headers
+          }
         );
       }
 
-      const data = await env.RESERVATIONS.get("reservations");
-      const reservations = data ? JSON.parse(data) : [];
+      const data =
+        await env.RESERVATIONS.get(
+          "reservations"
+        );
 
-      const index = reservations.findIndex(r =>
-        r.logement === suppression.logement &&
-        r.arrivee < suppression.depart &&
-        r.depart > suppression.arrivee
-      );
+      const reservations =
+        data ? JSON.parse(data) : [];
+
+      const index =
+        reservations.findIndex(r =>
+          r.logement ===
+            suppression.logement &&
+          r.arrivee <
+            suppression.depart &&
+          r.depart >
+            suppression.arrivee
+        );
 
       if (index === -1) {
         return new Response(
           JSON.stringify({
             success: false,
-            message: "Réservation introuvable."
+            message:
+              "Réservation introuvable."
           }),
-          { status: 404, headers }
+          {
+            status: 404,
+            headers
+          }
         );
       }
 
-      reservations.splice(index, 1);
+      reservations.splice(
+        index,
+        1
+      );
 
       await env.RESERVATIONS.put(
         "reservations",
@@ -534,7 +735,8 @@ export default {
       return new Response(
         JSON.stringify({
           success: true,
-          message: "Dates débloquées."
+          message:
+            "Dates débloquées."
         }),
         { headers }
       );
@@ -543,13 +745,16 @@ export default {
     // =========================
     // SITE
     // =========================
+
     if (
       url.pathname === "/" ||
       url.pathname === "/index.html" ||
       url.pathname === "/Index.html"
     ) {
       if (env.ASSETS) {
-        return env.ASSETS.fetch(request);
+        return env.ASSETS.fetch(
+          request
+        );
       }
     }
 
