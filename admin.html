@@ -191,41 +191,7 @@ async function bloquerDates() {
     message.textContent = "❌ Erreur lors du déblocage.";
   }
   }
-  async function debloquerDates() {
-  const logement = document.getElementById("logement").value;
-  const arrivee = document.getElementById("arrivee").value;
-  const depart = document.getElementById("depart").value;
-  const message = document.getElementById("message");
 
-  if (!arrivee || !depart) {
-    message.textContent = "❌ Choisis les dates à débloquer.";
-    return;
-  }
-
-  try {
-    const response = await fetch("/reservations", {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        logement: logement,
-        arrivee: arrivee,
-        depart: depart
-      })
-    });
-
-    const resultat = await response.json();
-
-    if (response.ok && resultat.success) {
-      message.textContent = "✅ Dates débloquées avec succès.";
-    } else {
-      message.textContent = "❌ " + (resultat.message || "Impossible de débloquer.");
-    }
-  } catch (erreur) {
-    message.textContent = "❌ Erreur lors du déblocage.";
-  }
-  }
   let moisAdmin = new Date();
 
 async function afficherCalendrierAdmin() {
