@@ -3,7 +3,8 @@ function estMaison(logement) {
 }
 
 function estStudio(logement) {
-  return String(logement || "").toLowerCase().includes("studio");
+  const nom = String(logement || "").toLowerCase();
+  return nom.includes("studio") || nom.includes("nid de gurson");
 }
 
 function dateIcalVersIso(valeur) {
@@ -68,10 +69,14 @@ async function reservationsAirbnbMaison(env) {
 }
 
 async function reservationsAirbnbStudio(env) {
-  return reservationsAirbnb(
-    env.AIRBNB_STUDIO_ICAL,
-    "Studio"
-  );
+  const calendriers = await Promise.all([
+    reservationsAirbnb(env.AIRBNB_STUDIO_ICAL, "Airbnb - Le Nid de Gurson"),
+    reservationsAirbnb(
+      env.HOLIDU_NID_ICAL || "https://api.host.holidu.com/ical/_hpftvj98qbtyl8-2kx6x.ics",
+      "Holidu - Le Nid de Gurson"
+    )
+  ]);
+  return calendriers.flat();
 }
 
 function conflitDates(arrivee, depart, reservation) {
@@ -95,7 +100,7 @@ function dateIsoVersIcal(date) {
 
 function calendrierLogement(reservations, type) {
   const maison = type === "maison";
-  const nom = maison ? "Maison" : "Studio";
+  const nom = maison ? "Maison" : "Le Nid de Gurson";
   const correspond = maison ? estMaison : estStudio;
 
   const lignes = [
@@ -481,7 +486,7 @@ export default {
           prixNuit = 200;
 
         } else if (
-          logement.includes("studio")
+          (logement.includes("studio") || logement.includes("nid de gurson"))
         ) {
           prixNuit = 65;
 
