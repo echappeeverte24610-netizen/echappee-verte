@@ -121,7 +121,7 @@ function dateIsoVersIcal(date) {
 
 function calendrierLogement(reservations, type) {
   const maison = type === "maison";
-  const nom = maison ? "Maison" : "Le Nid de Gurson";
+  const nom = maison ? "Grand Gîte" : "Le Nid de Gurson";
   const correspond = maison ? estMaison : estStudio;
 
   const lignes = [
@@ -140,7 +140,7 @@ function calendrierLogement(reservations, type) {
     lignes.push(
       "BEGIN:VEVENT",
       `UID:${echapperIcal(
-        r.id || crypto.randomUUID()
+        r.id || `${String(r.logement||"gite")}-${r.arrivee}-${r.depart}`
       )}@echappee-verte`,
       `DTSTART;VALUE=DATE:${dateIsoVersIcal(r.arrivee)}`,
       `DTEND;VALUE=DATE:${dateIsoVersIcal(r.depart)}`,
