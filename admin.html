@@ -212,7 +212,8 @@ async function afficherCalendrierAdmin() {
   let reservations = [];
 
   try {
-    const response = await fetch("/reservations?logement=" + encodeURIComponent(logement));
+    const response = await fetch("/blocked-dates?logement=" + encodeURIComponent(logement), {cache:"no-store"});
+    if (!response.ok) throw new Error("Impossible de récupérer les indisponibilités");
     const resultat = await response.json();
     reservations = Array.isArray(resultat) ? resultat : (resultat.reservations || []);
   } catch (erreur) {
@@ -233,7 +234,6 @@ async function afficherCalendrierAdmin() {
     const date = `${annee}-${String(mois + 1).padStart(2,"0")}-${String(jour).padStart(2,"0")}`;
 
     const reserve = reservations.some(r =>
-      r.logement === logement &&
       date >= r.arrivee &&
       date < r.depart
     );
