@@ -444,7 +444,8 @@ export default {
 
       // Conserver la réservation même si la liaison cuisine est momentanément indisponible.
       const transmis = await envoyerCuisine(reservation, env);
-      if (!transmis) console.log("Réservation en attente de synchronisation cuisine", reservation.id);
+      if (transmis) await env.RESERVATIONS.put("cuisine-sync:"+reservation.id,"1",{expirationTtl:604800});
+      else console.log("Réservation en attente de synchronisation cuisine", reservation.id);
 
       return new Response(
         JSON.stringify({
