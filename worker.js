@@ -15,7 +15,8 @@ async function envoyerCuisine(reservation, env) {
   } catch(error) {console.error("Cuisine synchronisation",String(error));return false}
 }
 function estMaison(logement) {
-  return String(logement || "").toLowerCase().includes("maison");
+  const nom = String(logement || "").toLowerCase();
+  return nom.includes("maison") || nom.includes("grand gîte") || nom.includes("grand gite");
 }
 
 function estStudio(logement) {
