@@ -329,7 +329,8 @@ sessionStorage.setItem("sumupCheckoutId", resultatPaiement.checkoutId);
   });
 
   try {
-    const reponse = await fetch("/reservations");
+    const reponse = await fetch("/blocked-dates?logement=" + encodeURIComponent(logement), {cache:"no-store"});
+    if (!reponse.ok) throw new Error("Calendrier indisponible");
     const reservations = await reponse.json();
 
     grille.innerHTML = "";
@@ -354,7 +355,6 @@ grille.style.gap = "5px";
         String(jour).padStart(2, "0");
 
       const reserve = reservations.some(r =>
-        r.logement === logement &&
         dateISO >= r.arrivee &&
         dateISO < r.depart
       );
