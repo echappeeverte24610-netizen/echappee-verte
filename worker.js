@@ -62,10 +62,14 @@ async function reservationsAirbnb(urlIcal, nom) {
 }
 
 async function reservationsAirbnbMaison(env) {
-  return reservationsAirbnb(
-    env.AIRBNB_MAISON_ICAL,
-    "Maison"
-  );
+  const calendriers = await Promise.all([
+    reservationsAirbnb(env.AIRBNB_MAISON_ICAL, "Airbnb - Grand gîte"),
+    reservationsAirbnb(
+      env.HOLIDU_MAISON_ICAL || "https://api.host.holidu.com/ical/90fir4ffdt_dkc5k-5xu4.ics",
+      "Holidu - Grand gîte"
+    )
+  ]);
+  return calendriers.flat();
 }
 
 async function reservationsAirbnbStudio(env) {
