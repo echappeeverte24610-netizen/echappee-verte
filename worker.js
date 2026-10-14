@@ -414,6 +414,22 @@ export default {
         JSON.stringify(reservations)
       );
 
+      // Liaison sécurisée vers l'écran cuisine. Les données personnelles restent sur le site de réservation.
+      if (env.GITES_SYNC_TOKEN && env.GESTION_TRAITEUR_URL) {
+        try {
+          const logement = estMaison(reservation.logement) ? "Grand Gîte" : estStudio(reservation.logement) ? "Le Nid de Gurson" : null;
+          if (logement) {
+            const response = await fetch(new URL("/api/gites/reservations", env.GESTION_TRAITEUR_URL).toString(), {
+              method: "POST",
+              headers: {"Content-Type":"application/json","Authorization":"Bearer "+env.GITES_SYNC_TOKEN},
+              body: JSON.stringify({id:reservation.id,logement,arrivee:reservation.arrivee,depart:reservation.depart}),
+              signal: AbortSignal.timeout(6000)
+            });
+            if (!response.ok) console.error("Synchronisation cuisine échouée",response.status);
+          }
+        } catch (error) { console.error("Synchronisation cuisine indisponible",String(error)); }
+      }
+
       return new Response(
         JSON.stringify({
           success: true,
