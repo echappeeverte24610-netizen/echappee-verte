@@ -1,3 +1,19 @@
+async function envoyerCuisine(reservation, env) {
+  if (!env.GITES_SYNC_TOKEN || (!env.TRAITEUR && !env.GESTION_TRAITEUR_URL)) return false;
+  const logement = estMaison(reservation.logement) ? "Grand Gîte" : estStudio(reservation.logement) ? "Le Nid de Gurson" : null;
+  if (!logement || !reservation.id) return false;
+  try {
+    const cible = env.TRAITEUR || {fetch:(url,options)=>fetch(url,options)};
+    const base = env.GESTION_TRAITEUR_URL || "https://gestion-traiteur.echappee-verte-24610.workers.dev";
+    const response = await cible.fetch(new URL("/api/gites/reservations",base).toString(), {
+      method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+env.GITES_SYNC_TOKEN},
+      body:JSON.stringify({id:reservation.id,logement,arrivee:reservation.arrivee,depart:reservation.depart}),
+      signal:AbortSignal.timeout(6000)
+    });
+    if (!response.ok) {console.error("Cuisine synchronisation HTTP",response.status);return false}
+    return true;
+  } catch(error) {console.error("Cuisine synchronisation",String(error));return false}
+}
 function estMaison(logement) {
   return String(logement || "").toLowerCase().includes("maison");
 }
@@ -170,6 +186,18 @@ async function conflitAvecAirbnb(reservation, env) {
 }
 
 export default {
+  async scheduled(event,env,ctx) {
+    ctx.waitUntil((async()=>{
+      const data = await env.RESERVATIONS.get("reservations");
+      const items = data ? JSON.parse(data) : [];
+      const recentes = items.filter(r=>r.id && r.createdAt && Date.now()-Date.parse(r.createdAt)<48*3600000);
+      for(const item of recentes){
+        const cle="cuisine-sync:"+item.id;
+        if(await env.RESERVATIONS.get(cle))continue;
+        if(await envoyerCuisine(item,env))await env.RESERVATIONS.put(cle,"1",{expirationTtl:604800});
+      }
+    })());
+  },
   async fetch(request, env) {
     const url = new URL(request.url);
 
@@ -414,21 +442,9 @@ export default {
         JSON.stringify(reservations)
       );
 
-      // Liaison sécurisée vers l'écran cuisine. Les données personnelles restent sur le site de réservation.
-      if (env.GITES_SYNC_TOKEN && env.GESTION_TRAITEUR_URL) {
-        try {
-          const logement = estMaison(reservation.logement) ? "Grand Gîte" : estStudio(reservation.logement) ? "Le Nid de Gurson" : null;
-          if (logement) {
-            const response = await fetch(new URL("/api/gites/reservations", env.GESTION_TRAITEUR_URL).toString(), {
-              method: "POST",
-              headers: {"Content-Type":"application/json","Authorization":"Bearer "+env.GITES_SYNC_TOKEN},
-              body: JSON.stringify({id:reservation.id,logement,arrivee:reservation.arrivee,depart:reservation.depart}),
-              signal: AbortSignal.timeout(6000)
-            });
-            if (!response.ok) console.error("Synchronisation cuisine échouée",response.status);
-          }
-        } catch (error) { console.error("Synchronisation cuisine indisponible",String(error)); }
-      }
+      // Conserver la réservation même si la liaison cuisine est momentanément indisponible.
+      const transmis = await envoyerCuisine(reservation, env);
+      if (!transmis) console.log("Réservation en attente de synchronisation cuisine", reservation.id);
 
       return new Response(
         JSON.stringify({
