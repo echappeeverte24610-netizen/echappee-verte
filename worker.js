@@ -220,6 +220,22 @@ export default {
       });
     }
 
+    // Plages occupées pour le calendrier public, sans données personnelles.
+    if (url.pathname === "/blocked-dates" && request.method === "GET") {
+      const type = url.searchParams.get("logement") || "";
+      const maison = estMaison(type);
+      const nid = estStudio(type);
+      if (!maison && !nid) return new Response(JSON.stringify({error:"Logement inconnu"}),{status:400,headers});
+      const data = await env.RESERVATIONS.get("reservations");
+      const locales = (data ? JSON.parse(data) : []).filter(r =>
+        (maison ? estMaison(r.logement) : estStudio(r.logement))
+      ).map(r => ({arrivee:r.arrivee,depart:r.depart}));
+      const externes = maison ? await reservationsAirbnbMaison(env) : await reservationsAirbnbStudio(env);
+      return new Response(JSON.stringify([...locales,...externes]), {
+        headers: {...headers,"Cache-Control":"no-store"}
+      });
+    }
+
     // =========================
     // VERIFIER DISPONIBILITES
     // =========================
